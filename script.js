@@ -79,78 +79,42 @@ Bitte vergiss nicht, wie dankbar ich dir dafür bin.`;
 /* ════════════════════════════════════════
    SOUND SYSTEM
 ════════════════════════════════════════ */
-// Tiny Web Audio tones for interactions
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-let actx = null;
+// Real Audio elements instead of synths
+const crumpleSound = document.getElementById('crumple-sound');
+const quillSound = document.getElementById('quill-sound');
+const chimeSound = document.getElementById('magic-chime');
 
-function getAudioCtx() {
-  if (!actx) actx = new AudioCtx();
-  return actx;
-}
-
-function playTone(freq, type = 'sine', duration = 0.18, gain = 0.12) {
-  try {
-    const ctx = getAudioCtx();
-    const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(gain, ctx.currentTime + 0.02);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + duration);
-  } catch(e) {}
+function playAudioSafe(audioEl) {
+  if (audioEl) {
+    audioEl.currentTime = 0;
+    audioEl.play().catch(e => console.log('Аудио не загружено или заблокировано:', e));
+  }
 }
 
 function playSealClick() {
-  playTone(320, 'sine', 0.12, 0.08);
-  setTimeout(() => playTone(440, 'sine', 0.15, 0.06), 80);
-  setTimeout(() => playTone(560, 'triangle', 0.2, 0.04), 160);
+  playAudioSafe(chimeSound);
 }
 
 function playEnvelopeOpen() {
-  // Paper/crinkle: quick noise burst via multiple tones
-  for (let i = 0; i < 6; i++) {
-    setTimeout(() => {
-      playTone(200 + Math.random() * 400, 'sawtooth', 0.06, 0.03);
-    }, i * 35);
-  }
+  playAudioSafe(crumpleSound);
 }
 
 function playLetterRustle() {
-  for (let i = 0; i < 8; i++) {
-    setTimeout(() => {
-      playTone(300 + Math.random() * 500, 'sawtooth', 0.05, 0.025);
-    }, i * 25);
-  }
-}
-
-function playTypeKey() {
-  playTone(600 + Math.random() * 200, 'square', 0.04, 0.015);
+  playAudioSafe(crumpleSound);
 }
 
 function playChime() {
-  const freqs = [523, 659, 784, 1047];
-  freqs.forEach((f, i) => {
-    setTimeout(() => playTone(f, 'sine', 0.5, 0.07), i * 180);
-  });
+  playAudioSafe(chimeSound);
 }
 
 function playFinaleSound() {
-  const melody = [261, 330, 392, 523, 659, 784, 1047];
-  melody.forEach((f, i) => {
-    setTimeout(() => playTone(f, 'sine', 0.7, 0.09), i * 120);
-  });
+  playAudioSafe(chimeSound);
 }
 
 /* ── Music toggle ── */
 let musicOn = false;
 
 soundBtn.addEventListener('click', () => {
-  getAudioCtx(); // unlock
   if (!musicOn) {
     bgMusic.play().catch(() => {});
     musicOn = true;
@@ -178,8 +142,6 @@ function openEnvelope() {
   if (step !== 'idle') return;
   step = 'seal_clicked';
 
-  // Unlock audio ctx on first interaction
-  getAudioCtx();
   playSealClick();
 
   // Seal disappears
@@ -234,7 +196,13 @@ function startTyping() {
   step = 'typing';
   let i = 0;
   const text = LETTER;
-  const baseDelay = 38;
+  const baseDelay = 55; // Slightly slower, more natural for writing
+
+  cursorEl.classList.add('writing');
+  if (quillSound) {
+    quillSound.currentTime = 0;
+    quillSound.play().catch(()=>console.log("No quill sound"));
+  }
 
   function typeNext() {
     if (i < text.length) {
@@ -242,22 +210,21 @@ function startTyping() {
       typedText.textContent += char;
       i++;
 
-      // Play key sound occasionally (not every char to avoid spam)
-      if (char !== ' ' && char !== '\n' && Math.random() > 0.3) {
-        playTypeKey();
-      }
-
-      // Variable delay: slower after punctuation, faster for spaces
+      // Variable delay for handwritten effect
       let delay = baseDelay;
-      if (char === '.' || char === ',' || char === '!') delay = 220;
-      else if (char === '\n') delay = 350;
-      else if (char === ' ') delay = 20;
-      else delay = baseDelay + Math.random() * 25;
+      if (char === '.' || char === ',' || char === '!') delay = 350;
+      else if (char === '\n') delay = 500;
+      else if (char === ' ') delay = 40;
+      else delay = baseDelay + Math.random() * 40;
 
       setTimeout(typeNext, delay);
     } else {
       // Typing done
+      cursorEl.classList.remove('writing');
       cursorEl.classList.add('hidden');
+      if (quillSound) {
+        quillSound.pause();
+      }
       playChime();
 
       setTimeout(() => {
